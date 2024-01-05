@@ -16,10 +16,8 @@ RUN apk --update --no-cache add \
     python3 \
     py3-pip
 
-RUN pip install git-remote-codecommit==1.16  
-
 WORKDIR /migrate
-
+RUN pip install git-remote-codecommit==1.16  
 COPY . .
 RUN chmod +x pipe.sh
 RUN ./pipe.sh
