@@ -1,5 +1,9 @@
-#!/usr/bin/env sh
-set -eu
+ARG AWS_ACCESS_KEY_ID
+ARG AWS_SECRET_ACCESS_KEY
+ARG AWS_SESSION_TOKEN
 
-git remote add codecommit codecommit::ap-south-1://github-backup-repo 
-git push codecommit backup
+WORKDIR /migrate
+
+COPY . .
+RUN chmod +x mirror.sh
+RUN ./mirror.sh
