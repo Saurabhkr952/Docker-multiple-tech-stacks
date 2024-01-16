@@ -1,0 +1,99 @@
+name: branch-3 workflow
+
+on:
+  push:
+    branches:
+      - '**'  
+      - '*'
+    tags:
+      - '*'
+
+jobs:
+  push_to_ecr:
+    name: Build Docker Image & Push to ECR 
+    if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'      
+    runs-on: ubuntu-latest 
+    permissions:
+        id-token: write
+        contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials for ECR access
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::278445542791:role/testing-purpose # modify Codecommit role ARN
+          role-session-name: GithubActiontrigger
+          aws-region: ap-south-1  # modify the region
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker Images
+        run: docker build -t ci-pipe-splunk-app .
+  
+      - name: Push Docker Image to ECR
+        id: build-image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: github-repo   #modify the codecommit repo name 
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag ci-pipe-splunk-app $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+  test:
+    name: Run Tests 
+    runs-on: ubuntu-latest
+    if: startsWith(github.event_name, 'push') && (github.ref_type == 'branch') || (github.ref == 'refs/heads/main')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          
+      - name: Installing Dependencies for Tests
+        run: pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Execute Tests
+        continue-on-error: true
+        run: pytest tests/test.py --junit-xml test-results/pytest.xml
+
+      - name: Generate coverage report
+        continue-on-error: true
+        run: pytest --cov=. --cov-report=xml
+      
+      - name: Upload artifact  
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage.xml
+          path: .
+          if-no-files-found: error
+
+
+  codacy:
+    name:  Upload Coverage report to Codacy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - test
+    steps: 
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage.xml
+          path: .
+
+      - name: Upload Coverage Report to Codacy # the env values you can find is from codacy website       
+        env:
+          CODACY_API_TOKEN: ${{ secrets.CODACY_API_TOKEN }} # modify 
+          CODACY_ORGANIZATION_PROVIDER: gh # modify
+          CODACY_USERNAME: Saurabhkr952 # modify
+          CODACY_PROJECT_NAME: temp-replication # modify
+          CODACY_REPORTER_VERSION: 13.13.15
+          CODACY_REPORTER_SKIP_CHECKSUM: false
+        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l python -r coverage.xml
