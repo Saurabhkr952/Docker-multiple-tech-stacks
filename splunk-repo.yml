@@ -61,7 +61,7 @@ jobs:
 
       - name: Execute Tests
         continue-on-error: true
-        run: pytest tests/test.py --junit-xml test-results/pytest.xml
+        run: pytest tests/test.py --junit-xml test-results/pytest.xml  # provide the filename with path of test files. here its set to tests/test.py
 
       - name: Generate coverage report
         continue-on-error: true
