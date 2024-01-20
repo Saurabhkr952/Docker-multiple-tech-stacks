@@ -1,0 +1,86 @@
+name: branch-4 workflow || manually trigger # modify the workflow name
+
+on:
+  push:
+    branches:
+      - '**'  
+  workflow_dispatch:
+
+jobs:
+  backup_to_codecommit:
+    name: Backup to Codecommit 
+    if: github.event_name == 'workflow_dispatch' 
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials for CodeCommit access
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::278445542791:role/testing-purpose # Provide Codecommit role ARN
+          role-session-name: GithubActiontrigger
+          aws-region: ap-south-1  # modify
+
+      - name: Install git-remote-codecommit (utility) # need help to set up this
+        run: pip install git-remote-codecommit
+      - name: adding mirror remote
+        run: git remote add mirror codecommit::ap-south-1://mig-backup # add codecommit https(grc) url
+      - name: Pushing to codecommit
+        run: git push --force --prune mirror backup-2  # provide the branch name
+
+  backup_to_ecr:
+    name: Build Docker Image and Backup to ECR 
+    if: github.event.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest 
+    permissions:
+        id-token: write
+        contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials for ECR access
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::278445542791:role/testing-purpose # Codecommit
+          role-session-name: GithubActiontrigger
+          aws-region: ap-south-1  # modify
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker Images
+        run: docker build -t aws-ecr-push-image .
+  
+      - name: Push Docker Image to ECR
+        id: build-image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: github-repo   #modify
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag aws-ecr-push-image $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+  snyk_scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build a Docker image 
+      run: docker build -t image-to-test .
+    - name: Run Snyk to check Docker image for vulnerabilities
+      continue-on-error: true
+      uses: snyk/actions/docker@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        image: image-to-test
