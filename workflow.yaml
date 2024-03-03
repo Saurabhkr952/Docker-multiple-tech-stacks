@@ -1,0 +1,89 @@
+name: workflow
+
+on:
+  push:
+    branches:
+      - '**'  
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Docker Image and Push to ECR
+    if: github.event.ref == 'refs/heads/main' 
+    runs-on: ubuntu-latest 
+    permissions:
+        id-token: write
+        contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials for ECR access
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::278445542791:role/testing-purpose # modify ECR ARN 
+          role-session-name: GithubActiontrigger
+          aws-region: ap-south-1  # modify 
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker Images
+        run: docker build -t image .
+  
+      - name: Push Docker Image to ECR
+        id: build-image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: github-repo   #modify
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag image $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+#         git tag -a "${{github.run_number}}" -m "Tagging for release ${{github.run_number}}"
+#         git push origin ${{github.run_number}} 
+
+  manually_trigger:
+    name: Build/Push Image with Custom tag
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest 
+    permissions:
+        id-token: write
+        contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials for ECR access
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::278445542791:role/testing-purpose # modify ECR ARN 
+          role-session-name: GithubActiontrigger
+          aws-region: ap-south-1  # modify 
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker Images
+        run: docker build -t image .
+  
+      - name: Push Docker Image to ECR
+        id: build-image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: github-repo   #modify
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag image $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG     
+
+      - name: Tagging for release
+        run: |
+#          git tag -a "${{github.run_number}}" -m "Tagging for release ${{github.run_number}}"
+#          git push origin ${{github.run_number}} 
