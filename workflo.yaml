@@ -4,12 +4,12 @@ on:
   push:
     branches:
       - '**'  
-  workflow_dispatch:
-
+  workflow_dispatch: 
+# backup_to_ecr will only trigger if there is any commit to main branch or you can mmanually trigger this as well.
 jobs:
   backup_to_ecr:
     name: Build Docker Image and Backup to ECR 
-    if: github.event.ref == 'refs/heads/main' 
+    if: github.event.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest 
     permissions:
         id-token: write
@@ -23,7 +23,7 @@ jobs:
       - name: Configure AWS credentials for ECR access
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::278445542791:role/testing-purpose # Codecommit
+          role-to-assume: arn:aws:iam::278445542791:role/testing-purpose # provide ECR role ARN
           role-session-name: GithubActiontrigger
           aws-region: ap-south-1  # modify
 
