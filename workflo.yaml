@@ -1,0 +1,52 @@
+name: branch-4 workflow || manually trigger # modify the workflow name
+
+on:
+  push:
+    branches:
+      - '**'  
+  workflow_dispatch:
+
+jobs:
+  backup_to_ecr:
+    name: Build Docker Image and Backup to ECR 
+    if: github.event.ref == 'refs/heads/main' 
+    runs-on: ubuntu-latest 
+    permissions:
+        id-token: write
+        contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials for ECR access
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::278445542791:role/testing-purpose # Codecommit
+          role-session-name: GithubActiontrigger
+          aws-region: ap-south-1  # modify
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker Images
+        run: docker build -t ci-pipe-ta-deploy .
+  
+      - name: Push Docker Image to ECR
+        id: build-image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: github-repo   #modify
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag ci-pipe-ta-deploy $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+        
+      - name: Tagging for release
+        env:
+          VERSION: 1.${{github.run_number}} # added in this workflow
+        run: |
+#          git tag -a "$VERSION" -m "Tagging for release $VERSION"
+#          git push origin $VERSION 
