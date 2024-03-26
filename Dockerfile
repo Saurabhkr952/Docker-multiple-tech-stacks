@@ -17,6 +17,8 @@ RUN apk --update --no-cache add \
     py3-pip
 
 WORKDIR /migrate
+
+# creating virtual environment in the root directory and installing pip packages
 RUN python3 -m venv / pip3 install git-remote-codecommit==1.16
 COPY . .
 RUN chmod +x pipe.sh
