@@ -1,4 +1,4 @@
-name: branch-4 workflow || manually trigger # modify the workflow name
+name: for all branches & manually trigger # modify the workflow name
 
 on:
   push:
